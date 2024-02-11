@@ -1,4 +1,3 @@
-mod legacy;
 mod open_cloud;
 
 use std::borrow::Cow;
@@ -8,14 +7,15 @@ use reqwest::StatusCode;
 use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use async_trait::async_trait;
 
-use self::{legacy::LegacyClient, open_cloud::OpenCloudClient};
+use self::{open_cloud::OpenCloudClient};
 
 #[derive(Debug, Clone)]
 pub struct ImageUploadData<'a> {
     pub image_data: Cow<'a, [u8]>,
-    pub name: &'a str,
-    pub description: &'a str,
+    pub name: String,
+    pub description: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -33,19 +33,20 @@ pub struct RobloxCredentials {
     pub group_id: Option<u64>,
 }
 
-pub trait RobloxApiClient {
+#[async_trait]
+pub trait RobloxApiClient<'a> {
     fn new(credentials: RobloxCredentials) -> Result<Self, RobloxApiError>
     where
         Self: Sized;
 
-    fn upload_image_with_moderation_retry(
-        &mut self,
-        data: &ImageUploadData,
+    async fn upload_image_with_moderation_retry(
+        &self,
+        data: ImageUploadData::<'a>,
     ) -> Result<UploadResponse, RobloxApiError>;
 
-    fn upload_image(&mut self, data: &ImageUploadData) -> Result<UploadResponse, RobloxApiError>;
+    async fn upload_image(&self, data: ImageUploadData::<'a>) -> Result<UploadResponse, RobloxApiError>;
 
-    fn download_image(&mut self, id: u64) -> Result<Vec<u8>, RobloxApiError>;
+    fn download_image(&self, id: u64) -> Result<Vec<u8>, RobloxApiError>; 
 }
 
 #[derive(Debug, Error)]
@@ -96,9 +97,9 @@ pub enum RobloxApiError {
     MalformedAssetId(#[from] std::num::ParseIntError),
 }
 
-pub fn get_preferred_client(
+pub fn get_preferred_client<'a>(
     credentials: RobloxCredentials,
-) -> Result<Box<dyn RobloxApiClient>, RobloxApiError> {
+) -> Result<Box<dyn RobloxApiClient::<'static>>, RobloxApiError> {
     match &credentials {
         RobloxCredentials {
             token: None,
@@ -129,7 +130,8 @@ Tarmac will attempt to upload to the user currently logged into Roblox Studio, o
 If you mean to use the Open Cloud API, make sure to provide an API key!")
             };
 
-            Ok(Box::new(LegacyClient::new(credentials)?))
+            todo!();
+            // Ok(Box::new(LegacyClient::new(credentials)?))
         }
     }
 }

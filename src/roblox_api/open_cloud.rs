@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+use async_trait::async_trait;
 use std::time::Duration;
 
 use rbxcloud::rbx::{
@@ -13,18 +15,19 @@ use secrecy::ExposeSecret;
 use tokio::runtime::Runtime;
 
 use super::{
-    legacy::LegacyClient, ImageUploadData, RobloxApiClient, RobloxApiError, RobloxCredentials,
+    ImageUploadData, RobloxApiClient, RobloxApiError, RobloxCredentials,
     UploadResponse,
 };
 
-pub struct OpenCloudClient {
+pub struct OpenCloudClient<'a> {
     credentials: RobloxCredentials,
     creator: AssetCreator,
     assets: RbxAssets,
-    runtime: Runtime,
+    _marker: PhantomData<&'a ()>,
 }
 
-impl RobloxApiClient for OpenCloudClient {
+#[async_trait]
+impl<'a> RobloxApiClient<'a> for OpenCloudClient<'a> {
     fn new(credentials: RobloxCredentials) -> Result<Self, RobloxApiError> {
         let creator = match (credentials.group_id, credentials.user_id) {
             (Some(id), None) => Ok(AssetCreator::Group(AssetGroupCreator {
@@ -37,28 +40,25 @@ impl RobloxApiClient for OpenCloudClient {
             (Some(_), Some(_)) => Err(RobloxApiError::AmbiguousCreatorType),
         }?;
 
-        let assets = RbxCloud::new(
-            credentials
-                .api_key
-                .as_ref()
-                .ok_or(RobloxApiError::MissingAuth)?
-                .expose_secret(),
-        )
-        .assets();
+        let Some(api_key) = credentials.api_key.as_ref() else {
+            return Err(RobloxApiError::MissingAuth);
+        };
+
+        let assets = RbxCloud::new(api_key.expose_secret()).assets();
 
         Ok(Self {
             creator,
             assets,
             credentials,
-            runtime: Runtime::new().unwrap(),
+            _marker: PhantomData::default()
         })
     }
 
-    fn upload_image_with_moderation_retry(
-        &mut self,
-        data: &ImageUploadData,
+    async fn upload_image_with_moderation_retry(
+        &self,
+        data: ImageUploadData::<'a>,
     ) -> Result<UploadResponse, RobloxApiError> {
-        match self.upload_image(data) {
+        match self.upload_image(data.clone()).await {
             Err(RobloxApiError::ResponseError { status, body })
                 if status == 400 && body.contains("moderated") =>
             {
@@ -66,27 +66,31 @@ impl RobloxApiClient for OpenCloudClient {
                     "Image name '{}' was moderated, retrying with different name...",
                     data.name
                 );
-                self.upload_image(&ImageUploadData {
-                    name: "image",
+                self.upload_image(ImageUploadData {
+                    name: "image".to_string(),
                     ..data.to_owned()
-                })
+                }).await
             }
 
             result => result,
         }
     }
 
-    fn upload_image(&mut self, data: &ImageUploadData) -> Result<UploadResponse, RobloxApiError> {
-        self.upload_image_inner(data)
+    async fn upload_image(&self, data: ImageUploadData::<'a>) -> Result<UploadResponse, RobloxApiError> {
+        self.upload_image_inner(data).await
     }
 
-    fn download_image(&mut self, id: u64) -> Result<Vec<u8>, RobloxApiError> {
-        LegacyClient::new(self.credentials.clone())?.download_image(id)
+    fn download_image(&self, id: u64) -> Result<Vec<u8>, RobloxApiError> {
+        todo!();
+        // LegacyClient::new(self.credentials.clone())?.download_image(id)
     }
 }
 
-impl OpenCloudClient {
-    fn upload_image_inner(&self, data: &ImageUploadData) -> Result<UploadResponse, RobloxApiError> {
+impl<'a> OpenCloudClient<'a> {
+    async fn upload_image_inner(
+        &self,
+        data: ImageUploadData::<'a>,
+    ) -> Result<UploadResponse, RobloxApiError> {
         let asset_info = CreateAssetWithContents {
             asset: AssetCreation {
                 asset_type: AssetType::DecalPng,
@@ -100,14 +104,17 @@ impl OpenCloudClient {
             contents: &data.image_data,
         };
 
-        let operation_id = self
-            .runtime
-            .block_on(async { self.assets.create_with_contents(&asset_info).await })
-            .map(|response| response.path)?
-            .ok_or(RobloxApiError::MissingOperationPath)?
-            .strip_prefix("operations/")
-            .ok_or(RobloxApiError::MalformedOperationPath)?
-            .to_string();
+        let response = self.assets.create_with_contents(&asset_info).await?;
+
+        let Some(operation_id) = response.path else {
+            return Err(RobloxApiError::MissingOperationPath);
+        };
+
+        let Some(operation_id) = operation_id.strip_prefix("operations/") else {
+            return Err(RobloxApiError::MissingOperationPath);
+        };
+
+        let operation_id = operation_id.to_string();
 
         const MAX_RETRIES: u32 = 5;
         const INITIAL_SLEEP_DURATION: Duration = Duration::from_millis(50);
@@ -115,24 +122,27 @@ impl OpenCloudClient {
 
         let mut retry_count = 0;
         let operation = GetAsset { operation_id };
-        let asset_id = loop {
-            let maybe_asset_id = self
-                .runtime
-                .block_on(async { self.assets.get(&operation).await })?
-                .response
-                .map(|response| response.asset_id)
-                .map(|id| id.parse::<u64>().map_err(RobloxApiError::MalformedAssetId));
+        let asset_id = async {
+            loop {
+                let res = self.assets.get(&operation).await?;
+                let Some(response) = res.response else {
+                    if retry_count > MAX_RETRIES {
+                        return Err(RobloxApiError::AssetGetFailed);
+                    }
 
-            match maybe_asset_id {
-                Some(id) => break id,
-                None if retry_count > MAX_RETRIES => break Err(RobloxApiError::AssetGetFailed),
-
-                _ => {
                     retry_count += 1;
                     std::thread::sleep(INITIAL_SLEEP_DURATION * retry_count.pow(BACKOFF));
-                }
+                    continue;
+                };
+
+                let Ok(asset_id) = response.asset_id.parse::<u64>() else {
+                    return Err(RobloxApiError::AssetGetFailed);
+                };
+
+                return Ok(asset_id);
             }
-        }?;
+        }
+        .await?;
 
         Ok(UploadResponse {
             asset_id,

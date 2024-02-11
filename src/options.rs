@@ -36,7 +36,7 @@ pub enum Subcommand {
     UploadImage(UploadImageOptions),
 
     /// Sync your Tarmac project, uploading any assets that have changed.
-    Sync(SyncOptions),
+    // Sync(SyncOptions),
 
     /// Downloads any packed spritesheets, then generates a file mapping asset
     /// IDs to file paths. This command only works when logged into Roblox

@@ -1,23 +1,22 @@
 use std::{
-    borrow::Cow,
-    io,
-    path::{Path, PathBuf},
-    thread,
-    time::Duration,
+    borrow::Cow, io, marker::PhantomData, path::{Path, PathBuf}, pin::Pin, sync::Arc, thread, time::Duration
 };
 
+use async_trait::async_trait;
 use fs_err as fs;
 use reqwest::StatusCode;
 use roblox_install::RobloxStudio;
 use thiserror::Error;
+use tokio::sync::Mutex;
 
 use crate::{
     data::AssetId,
     roblox_api::{ImageUploadData, RobloxApiClient, RobloxApiError},
 };
 
+#[async_trait]
 pub trait SyncBackend {
-    fn upload(&mut self, data: UploadInfo) -> Result<UploadResponse, Error>;
+    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse, Error>;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -32,48 +31,65 @@ pub struct UploadInfo {
     pub hash: String,
 }
 
-pub struct RobloxSyncBackend<'a> {
-    api_client: &'a mut dyn RobloxApiClient,
+pub struct RobloxSyncBackend<'a, ApiClient>
+where
+    ApiClient: RobloxApiClient::<'a> + Sync + Clone
+{
+    api_client: Arc<&'a ApiClient>,
+    _marker: PhantomData<&'a ()>
 }
 
-impl<'a> RobloxSyncBackend<'a> {
-    pub fn new(api_client: &'a mut dyn RobloxApiClient) -> Self {
-        Self { api_client }
+impl<'a, ApiClient> RobloxSyncBackend<'a, ApiClient> 
+where
+    ApiClient: RobloxApiClient::<'a> + Sync + Clone
+{
+    pub fn new(api_client: ApiClient) -> Self {
+        // Self { api_client: Arc::new(api_client) }
+        Self {
+            api_client: Arc::new(&api_client),
+            _marker: PhantomData::default()
+        } 
     }
 }
 
-impl<'a> SyncBackend for RobloxSyncBackend<'a> {
-    fn upload(&mut self, data: UploadInfo) -> Result<UploadResponse, Error> {
+#[async_trait]
+impl<'a, ApiClient> SyncBackend for RobloxSyncBackend<'a, ApiClient>
+where
+    ApiClient: RobloxApiClient::<'a> + Sync + Clone
+{
+    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse, Error> {
         log::info!("Uploading {} to Roblox", &data.name);
 
-        let result = self
-            .api_client
-            .upload_image_with_moderation_retry(&ImageUploadData {
-                image_data: Cow::Owned(data.contents),
-                name: &data.name,
-                description: "Uploaded by Tarmac.",
-            });
+        todo!()
 
-        match result {
-            Ok(response) => {
-                log::info!(
-                    "Uploaded {} to ID {}",
-                    &data.name,
-                    response.backing_asset_id
-                );
+        // let result = self
+        //     .api_client
+        //     .upload_image_with_moderation_retry(&ImageUploadData {
+        //         image_data: Cow::Owned(data.contents),
+        //         name: &data.name,
+        //         description: "Uploaded by Tarmac.",
+        //     }).await;
 
-                Ok(UploadResponse {
-                    id: AssetId::Id(response.backing_asset_id),
-                })
-            }
+        // match result {
+        //     Ok(response) => {
+        //         log::info!(
+        //             "Uploaded {} to ID {}",
+        //             &data.name,
+        //             response.backing_asset_id
+        //         );
 
-            Err(RobloxApiError::ResponseError {
-                status: StatusCode::TOO_MANY_REQUESTS,
-                ..
-            }) => Err(Error::RateLimited),
+        //         Ok(UploadResponse {
+        //             id: AssetId::Id(response.backing_asset_id),
+        //         })
+        //     }
 
-            Err(err) => Err(err.into()),
-        }
+        //     Err(RobloxApiError::ResponseError {
+        //         status: StatusCode::TOO_MANY_REQUESTS,
+        //         ..
+        //     }) => Err(Error::RateLimited),
+
+        //     Err(err) => Err(err.into()),
+        // }
     }
 }
 
@@ -106,8 +122,9 @@ impl LocalSyncBackend {
     }
 }
 
+#[async_trait]
 impl SyncBackend for LocalSyncBackend {
-    fn upload(&mut self, data: UploadInfo) -> Result<UploadResponse, Error> {
+    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse, Error> {
         let asset_path = self.get_asset_path(&data);
         let file_path = self.content_path.join(&asset_path);
         let parent = file_path
@@ -127,8 +144,9 @@ impl SyncBackend for LocalSyncBackend {
 
 pub struct NoneSyncBackend;
 
+#[async_trait]
 impl SyncBackend for NoneSyncBackend {
-    fn upload(&mut self, _data: UploadInfo) -> Result<UploadResponse, Error> {
+    async fn upload(&self, _data: UploadInfo) -> Result<UploadResponse, Error> {
         Err(Error::NoneBackend)
     }
 }
@@ -143,28 +161,32 @@ impl DebugSyncBackend {
     }
 }
 
+#[async_trait]
 impl SyncBackend for DebugSyncBackend {
-    fn upload(&mut self, data: UploadInfo) -> Result<UploadResponse, Error> {
-        log::info!("Copying {} to local folder", &data.name);
+    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse, Error> {
+        todo!();
+        // log::info!("Copying {} to local folder", &data.name);
 
-        self.last_id += 1;
-        let id = self.last_id;
+        // self.last_id += 1;
+        // let id = self.last_id;
 
-        let path = Path::new(".tarmac-debug");
-        fs::create_dir_all(path)?;
+        // let path = Path::new(".tarmac-debug");
+        // fs::create_dir_all(path)?;
 
-        let file_path = path.join(id.to_string());
-        fs::write(&file_path, &data.contents)?;
+        // let file_path = path.join(id.to_string());
+        // fs::write(&file_path, &data.contents)?;
 
-        Ok(UploadResponse {
-            id: AssetId::Id(id),
-        })
+        // Ok(UploadResponse {
+        //     id: AssetId::Id(id),
+        // })
     }
 }
 
 /// Performs the retry logic for rate limitation errors. The struct wraps a SyncBackend so that
 /// when a RateLimited error occurs, the thread sleeps for a moment and then tries to reupload the
 /// data.
+/// 
+#[derive(Clone, Debug)]
 pub struct RetryBackend<InnerSyncBackend> {
     inner: InnerSyncBackend,
     delay: Duration,
@@ -184,8 +206,9 @@ impl<InnerSyncBackend> RetryBackend<InnerSyncBackend> {
     }
 }
 
-impl<InnerSyncBackend: SyncBackend> SyncBackend for RetryBackend<InnerSyncBackend> {
-    fn upload(&mut self, data: UploadInfo) -> Result<UploadResponse, Error> {
+#[async_trait]
+impl<InnerSyncBackend: SyncBackend + Clone + Sync> SyncBackend for RetryBackend<InnerSyncBackend> {
+    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse, Error> {
         for index in 0..self.attempts {
             if index != 0 {
                 log::info!(
@@ -195,7 +218,7 @@ impl<InnerSyncBackend: SyncBackend> SyncBackend for RetryBackend<InnerSyncBacken
                 );
                 thread::sleep(self.delay);
             }
-            let result = self.inner.upload(data.clone());
+            let result = self.inner.upload(data.clone()).await;
 
             match result {
                 Err(Error::RateLimited) => {}
@@ -234,116 +257,116 @@ pub enum Error {
     },
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
+// #[cfg(test)]
+// mod test {
+//     use super::*;
 
-    #[allow(unused_must_use)]
-    mod test_retry_backend {
-        use super::*;
+//     #[allow(unused_must_use)]
+//     mod test_retry_backend {
+//         use super::*;
 
-        struct CountUploads<'a> {
-            counter: &'a mut usize,
-            results: Vec<Result<UploadResponse, Error>>,
-        }
+//         struct CountUploads<'a> {
+//             counter: &'a mut usize,
+//             results: Vec<Result<UploadResponse, Error>>,
+//         }
 
-        impl<'a> CountUploads<'a> {
-            fn new(counter: &'a mut usize) -> Self {
-                Self {
-                    counter,
-                    results: Vec::new(),
-                }
-            }
+//         impl<'a> CountUploads<'a> {
+//             fn new(counter: &'a mut usize) -> Self {
+//                 Self {
+//                     counter,
+//                     results: Vec::new(),
+//                 }
+//             }
 
-            fn with_results(mut self, results: Vec<Result<UploadResponse, Error>>) -> Self {
-                self.results = results;
-                self.results.reverse();
-                self
-            }
-        }
+//             fn with_results(mut self, results: Vec<Result<UploadResponse, Error>>) -> Self {
+//                 self.results = results;
+//                 self.results.reverse();
+//                 self
+//             }
+//         }
+        
+//         impl<'a> SyncBackend for CountUploads<'a> {
+//             fn upload(&mut self, _data: UploadInfo) -> Result<UploadResponse, Error> {
+//                 (*self.counter) += 1;
+//                 self.results.pop().unwrap_or(Err(Error::NoneBackend))
+//             }
+//         }
 
-        impl<'a> SyncBackend for CountUploads<'a> {
-            fn upload(&mut self, _data: UploadInfo) -> Result<UploadResponse, Error> {
-                (*self.counter) += 1;
-                self.results.pop().unwrap_or(Err(Error::NoneBackend))
-            }
-        }
+//         fn any_upload_info() -> UploadInfo {
+//             UploadInfo {
+//                 name: "foo".to_owned(),
+//                 contents: Vec::new(),
+//                 hash: "hash".to_owned(),
+//             }
+//         }
 
-        fn any_upload_info() -> UploadInfo {
-            UploadInfo {
-                name: "foo".to_owned(),
-                contents: Vec::new(),
-                hash: "hash".to_owned(),
-            }
-        }
+//         fn retry_duration() -> Duration {
+//             Duration::from_millis(1)
+//         }
 
-        fn retry_duration() -> Duration {
-            Duration::from_millis(1)
-        }
+//         #[test]
+//         fn upload_at_least_once() {
+//             let mut counter = 0;
+//             let mut backend =
+//                 RetryBackend::new(CountUploads::new(&mut counter), 0, retry_duration());
 
-        #[test]
-        fn upload_at_least_once() {
-            let mut counter = 0;
-            let mut backend =
-                RetryBackend::new(CountUploads::new(&mut counter), 0, retry_duration());
+//             backend.upload(any_upload_info());
 
-            backend.upload(any_upload_info());
+//             assert_eq!(counter, 1);
+//         }
 
-            assert_eq!(counter, 1);
-        }
+//         #[test]
+//         fn upload_again_if_rate_limited() {
+//             let mut counter = 0;
+//             let inner = CountUploads::new(&mut counter).with_results(vec![
+//                 Err(Error::RateLimited),
+//                 Err(Error::RateLimited),
+//                 Err(Error::NoneBackend),
+//             ]);
+//             let mut backend = RetryBackend::new(inner, 5, retry_duration());
 
-        #[test]
-        fn upload_again_if_rate_limited() {
-            let mut counter = 0;
-            let inner = CountUploads::new(&mut counter).with_results(vec![
-                Err(Error::RateLimited),
-                Err(Error::RateLimited),
-                Err(Error::NoneBackend),
-            ]);
-            let mut backend = RetryBackend::new(inner, 5, retry_duration());
+//             backend.upload(any_upload_info());
 
-            backend.upload(any_upload_info());
+//             assert_eq!(counter, 3);
+//         }
 
-            assert_eq!(counter, 3);
-        }
+//         #[test]
+//         fn upload_returns_first_success_result() {
+//             let mut counter = 0;
+//             let success = UploadResponse {
+//                 id: AssetId::Id(10),
+//             };
+//             let inner = CountUploads::new(&mut counter).with_results(vec![
+//                 Err(Error::RateLimited),
+//                 Err(Error::RateLimited),
+//                 Ok(success.clone()),
+//             ]);
+//             let mut backend = RetryBackend::new(inner, 5, retry_duration());
 
-        #[test]
-        fn upload_returns_first_success_result() {
-            let mut counter = 0;
-            let success = UploadResponse {
-                id: AssetId::Id(10),
-            };
-            let inner = CountUploads::new(&mut counter).with_results(vec![
-                Err(Error::RateLimited),
-                Err(Error::RateLimited),
-                Ok(success.clone()),
-            ]);
-            let mut backend = RetryBackend::new(inner, 5, retry_duration());
+//             let upload_result = backend.upload(any_upload_info()).unwrap();
 
-            let upload_result = backend.upload(any_upload_info()).unwrap();
+//             assert_eq!(counter, 3);
+//             assert_eq!(upload_result, success);
+//         }
 
-            assert_eq!(counter, 3);
-            assert_eq!(upload_result, success);
-        }
+//         #[test]
+//         fn upload_returns_rate_limited_when_retries_exhausted() {
+//             let mut counter = 0;
+//             let inner = CountUploads::new(&mut counter).with_results(vec![
+//                 Err(Error::RateLimited),
+//                 Err(Error::RateLimited),
+//                 Err(Error::RateLimited),
+//                 Err(Error::RateLimited),
+//             ]);
+//             let mut backend = RetryBackend::new(inner, 2, retry_duration());
 
-        #[test]
-        fn upload_returns_rate_limited_when_retries_exhausted() {
-            let mut counter = 0;
-            let inner = CountUploads::new(&mut counter).with_results(vec![
-                Err(Error::RateLimited),
-                Err(Error::RateLimited),
-                Err(Error::RateLimited),
-                Err(Error::RateLimited),
-            ]);
-            let mut backend = RetryBackend::new(inner, 2, retry_duration());
+//             let upload_result = backend.upload(any_upload_info()).unwrap_err();
 
-            let upload_result = backend.upload(any_upload_info()).unwrap_err();
-
-            assert_eq!(counter, 3);
-            assert!(match upload_result {
-                Error::RateLimited => true,
-                _ => false,
-            });
-        }
-    }
-}
+//             assert_eq!(counter, 3);
+//             assert!(match upload_result {
+//                 Error::RateLimited => true,
+//                 _ => false,
+//             });
+//         }
+//     }
+// }

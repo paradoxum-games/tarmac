@@ -18,12 +18,12 @@ use structopt::StructOpt;
 
 use crate::options::{Options, Subcommand};
 
-fn run(options: Options) -> Result<(), anyhow::Error> {
+async fn run(options: Options) -> Result<(), anyhow::Error> {
     match options.command {
         Subcommand::UploadImage(upload_options) => {
-            commands::upload_image(options.global, upload_options)?
+            commands::upload_image(options.global, upload_options).await?
         }
-        Subcommand::Sync(sync_options) => commands::sync(options.global, sync_options)?,
+        // Subcommand::Sync(sync_options) => commands::sync(options.global, sync_options)?,
         Subcommand::CreateCacheMap(sub_options) => {
             commands::create_cache_map(options.global, sub_options)?
         }
@@ -33,7 +33,8 @@ fn run(options: Options) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     panic::set_hook(Box::new(|panic_info| {
         // PanicInfo's payload is usually a &'static str or String.
         // See: https://doc.rust-lang.org/beta/std/panic/struct.PanicInfo.html#method.payload
@@ -98,7 +99,7 @@ fn main() {
         .format_indent(Some(8))
         .init();
 
-    if let Err(err) = run(options) {
+    if let Err(err) = run(options).await {
         log::error!("{:?}", err);
         process::exit(1);
     }
