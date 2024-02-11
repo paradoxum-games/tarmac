@@ -2,14 +2,15 @@ mod open_cloud;
 
 use std::borrow::Cow;
 
+use async_trait::async_trait;
+use anyhow::{bail, Result};
 use rbxcloud::rbx::error::Error as RbxCloudError;
 use reqwest::StatusCode;
 use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use async_trait::async_trait;
 
-use self::{open_cloud::OpenCloudClient};
+use self::open_cloud::OpenCloudClient;
 
 #[derive(Debug, Clone)]
 pub struct ImageUploadData<'a> {
@@ -35,18 +36,22 @@ pub struct RobloxCredentials {
 
 #[async_trait]
 pub trait RobloxApiClient<'a> {
-    fn new(credentials: RobloxCredentials) -> Result<Self, RobloxApiError>
+    fn new(credentials: RobloxCredentials) -> Result<Self>
     where
         Self: Sized;
 
-    async fn upload_image_with_moderation_retry(
+    // this was a bad idea, sorry
+    // async fn upload_image_with_moderation_retry(
+    //     &self,
+    //     data: ImageUploadData<'a>,
+    // ) -> Result<UploadResponse>;
+
+    async fn upload_image(
         &self,
-        data: ImageUploadData::<'a>,
-    ) -> Result<UploadResponse, RobloxApiError>;
+        data: ImageUploadData<'a>,
+    ) -> Result<UploadResponse>;
 
-    async fn upload_image(&self, data: ImageUploadData::<'a>) -> Result<UploadResponse, RobloxApiError>;
-
-    fn download_image(&self, id: u64) -> Result<Vec<u8>, RobloxApiError>; 
+    fn download_image(&self, id: u64) -> Result<Vec<u8>>;
 }
 
 #[derive(Debug, Error)]
@@ -99,19 +104,19 @@ pub enum RobloxApiError {
 
 pub fn get_preferred_client<'a>(
     credentials: RobloxCredentials,
-) -> Result<Box<dyn RobloxApiClient::<'static>>, RobloxApiError> {
+) -> Result<Box<dyn RobloxApiClient<'static>>> {
     match &credentials {
         RobloxCredentials {
             token: None,
             api_key: None,
             ..
-        } => Err(RobloxApiError::MissingAuth),
+        } => bail!(RobloxApiError::MissingAuth),
 
         RobloxCredentials {
             group_id: Some(_),
             user_id: Some(_),
             ..
-        } => Err(RobloxApiError::AmbiguousCreatorType),
+        } => bail!(RobloxApiError::AmbiguousCreatorType),
 
         RobloxCredentials {
             api_key: Some(_), ..

@@ -14,20 +14,24 @@ mod sync_backend;
 use std::{env, panic, process};
 
 use backtrace::Backtrace;
-use structopt::StructOpt;
+use clap::Parser;
+use tokio::signal;
 
-use crate::options::{Options, Subcommand};
+use crate::options::{Options, Command};
 
 async fn run(options: Options) -> Result<(), anyhow::Error> {
     match options.command {
-        Subcommand::UploadImage(upload_options) => {
+        Command::UploadImage(upload_options) => {
             commands::upload_image(options.global, upload_options).await?
         }
-        // Subcommand::Sync(sync_options) => commands::sync(options.global, sync_options)?,
-        Subcommand::CreateCacheMap(sub_options) => {
+        Command::Sync(sync_options) => {
+            // commands::sync(options.global, sync_options)?,
+            todo!("unfinished")
+        },
+        Command::CreateCacheMap(sub_options) => {
             commands::create_cache_map(options.global, sub_options)?
         }
-        Subcommand::AssetList(sub_options) => commands::asset_list(options.global, sub_options)?,
+        Command::AssetList(sub_options) => commands::asset_list(options.global, sub_options)?,
     }
 
     Ok(())
@@ -81,7 +85,7 @@ async fn main() {
         process::exit(1);
     }));
 
-    let options = Options::from_args();
+    let options = Options::parse();
 
     let log_filter = match options.global.verbosity {
         0 => "info",
@@ -99,8 +103,16 @@ async fn main() {
         .format_indent(Some(8))
         .init();
 
-    if let Err(err) = run(options).await {
-        log::error!("{:?}", err);
-        process::exit(1);
+    tokio::select! {
+        result = run(options) => {
+            if let Err(err) = result {
+                log::error!("command exited with error {err:?}");
+                process::exit(1);
+            }
+        },
+        _ = signal::ctrl_c() => {
+            log::info!("caught ctrl-c, exiting now");
+            process::exit(0);
+        }
     }
 }

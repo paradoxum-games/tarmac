@@ -1,5 +1,6 @@
-use std::marker::PhantomData;
+use anyhow::{bail, Result};
 use async_trait::async_trait;
+use std::marker::PhantomData;
 use std::time::Duration;
 
 use rbxcloud::rbx::{
@@ -12,12 +13,8 @@ use rbxcloud::rbx::{
 };
 use reqwest::StatusCode;
 use secrecy::ExposeSecret;
-use tokio::runtime::Runtime;
 
-use super::{
-    ImageUploadData, RobloxApiClient, RobloxApiError, RobloxCredentials,
-    UploadResponse,
-};
+use super::{ImageUploadData, RobloxApiClient, RobloxApiError, RobloxCredentials, UploadResponse};
 
 pub struct OpenCloudClient<'a> {
     credentials: RobloxCredentials,
@@ -28,20 +25,19 @@ pub struct OpenCloudClient<'a> {
 
 #[async_trait]
 impl<'a> RobloxApiClient<'a> for OpenCloudClient<'a> {
-    fn new(credentials: RobloxCredentials) -> Result<Self, RobloxApiError> {
+    fn new(credentials: RobloxCredentials) -> Result<Self> {
         let creator = match (credentials.group_id, credentials.user_id) {
-            (Some(id), None) => Ok(AssetCreator::Group(AssetGroupCreator {
+            (Some(id), None) => AssetCreator::Group(AssetGroupCreator {
                 group_id: id.to_string(),
-            })),
-            (None, Some(id)) => Ok(AssetCreator::User(AssetUserCreator {
+            }),
+            (None, Some(id)) => AssetCreator::User(AssetUserCreator {
                 user_id: id.to_string(),
-            })),
-            (None, None) => Err(RobloxApiError::ApiKeyNeedsCreatorId),
-            (Some(_), Some(_)) => Err(RobloxApiError::AmbiguousCreatorType),
-        }?;
+            }),
+            _ => unreachable!()
+        };
 
         let Some(api_key) = credentials.api_key.as_ref() else {
-            return Err(RobloxApiError::MissingAuth);
+            bail!(RobloxApiError::MissingAuth);
         };
 
         let assets = RbxCloud::new(api_key.expose_secret()).assets();
@@ -50,37 +46,42 @@ impl<'a> RobloxApiClient<'a> for OpenCloudClient<'a> {
             creator,
             assets,
             credentials,
-            _marker: PhantomData::default()
+            _marker: PhantomData::default(),
         })
     }
 
-    async fn upload_image_with_moderation_retry(
+    // this was a bad idea, sorry
+    // async fn upload_image_with_moderation_retry(
+    //     &self,
+    //     data: ImageUploadData<'a>,
+    // ) -> Result<UploadResponse> {
+    //     match self.upload_image(data.clone()).await {
+    //         Err(RobloxApiError::ResponseError { status, body })
+    //             if status == 400 && body.contains("moderated") =>
+    //         {
+    //             log::warn!(
+    //                 "Image name '{}' was moderated, retrying with different name...",
+    //                 data.name
+    //             );
+    //             self.upload_image(ImageUploadData {
+    //                 name: "image".to_string(),
+    //                 ..data.to_owned()
+    //             })
+    //             .await
+    //         }
+
+    //         result => result,
+    //     }
+    // }
+
+    async fn upload_image(
         &self,
-        data: ImageUploadData::<'a>,
-    ) -> Result<UploadResponse, RobloxApiError> {
-        match self.upload_image(data.clone()).await {
-            Err(RobloxApiError::ResponseError { status, body })
-                if status == 400 && body.contains("moderated") =>
-            {
-                log::warn!(
-                    "Image name '{}' was moderated, retrying with different name...",
-                    data.name
-                );
-                self.upload_image(ImageUploadData {
-                    name: "image".to_string(),
-                    ..data.to_owned()
-                }).await
-            }
-
-            result => result,
-        }
-    }
-
-    async fn upload_image(&self, data: ImageUploadData::<'a>) -> Result<UploadResponse, RobloxApiError> {
+        data: ImageUploadData<'a>,
+    ) -> Result<UploadResponse> {
         self.upload_image_inner(data).await
     }
 
-    fn download_image(&self, id: u64) -> Result<Vec<u8>, RobloxApiError> {
+    fn download_image(&self, id: u64) -> Result<Vec<u8>> {
         todo!();
         // LegacyClient::new(self.credentials.clone())?.download_image(id)
     }
@@ -89,8 +90,8 @@ impl<'a> RobloxApiClient<'a> for OpenCloudClient<'a> {
 impl<'a> OpenCloudClient<'a> {
     async fn upload_image_inner(
         &self,
-        data: ImageUploadData::<'a>,
-    ) -> Result<UploadResponse, RobloxApiError> {
+        data: ImageUploadData<'a>,
+    ) -> Result<UploadResponse> {
         let asset_info = CreateAssetWithContents {
             asset: AssetCreation {
                 asset_type: AssetType::DecalPng,
@@ -107,11 +108,11 @@ impl<'a> OpenCloudClient<'a> {
         let response = self.assets.create_with_contents(&asset_info).await?;
 
         let Some(operation_id) = response.path else {
-            return Err(RobloxApiError::MissingOperationPath);
+            bail!(RobloxApiError::MissingOperationPath);
         };
 
         let Some(operation_id) = operation_id.strip_prefix("operations/") else {
-            return Err(RobloxApiError::MissingOperationPath);
+            bail!(RobloxApiError::MissingOperationPath);
         };
 
         let operation_id = operation_id.to_string();

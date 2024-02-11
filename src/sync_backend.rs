@@ -33,20 +33,20 @@ pub struct UploadInfo {
 
 pub struct RobloxSyncBackend<'a, ApiClient>
 where
-    ApiClient: RobloxApiClient::<'a> + Sync + Clone
+    ApiClient: RobloxApiClient::<'a> + Sync + Clone + Send
 {
-    api_client: Arc<&'a ApiClient>,
+    api_client: Arc<ApiClient>,
     _marker: PhantomData<&'a ()>
 }
 
 impl<'a, ApiClient> RobloxSyncBackend<'a, ApiClient> 
 where
-    ApiClient: RobloxApiClient::<'a> + Sync + Clone
+    ApiClient: RobloxApiClient::<'a> + Sync + Clone + Send
 {
     pub fn new(api_client: ApiClient) -> Self {
         // Self { api_client: Arc::new(api_client) }
         Self {
-            api_client: Arc::new(&api_client),
+            api_client: Arc::new(api_client),
             _marker: PhantomData::default()
         } 
     }
@@ -55,7 +55,7 @@ where
 #[async_trait]
 impl<'a, ApiClient> SyncBackend for RobloxSyncBackend<'a, ApiClient>
 where
-    ApiClient: RobloxApiClient::<'a> + Sync + Clone
+    ApiClient: RobloxApiClient::<'a> + Sync + Clone + Send
 {
     async fn upload(&self, data: UploadInfo) -> Result<UploadResponse, Error> {
         log::info!("Uploading {} to Roblox", &data.name);
