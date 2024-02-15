@@ -37,9 +37,7 @@ pub struct RobloxCredentials {
 #[async_trait]
 pub trait RobloxApiClient<'a> {
     fn new(credentials: RobloxCredentials) -> Result<Self>
-    where
-        Self: Sized;
-
+    where Self: Sized;
     // this was a bad idea, sorry
     // async fn upload_image_with_moderation_retry(
     //     &self,
