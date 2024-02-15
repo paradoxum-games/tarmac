@@ -17,7 +17,7 @@ use backtrace::Backtrace;
 use clap::Parser;
 use tokio::signal;
 
-use crate::options::{Options, Command};
+use crate::options::{Command, Options};
 
 async fn run(options: Options) -> Result<(), anyhow::Error> {
     match options.command {
@@ -27,7 +27,7 @@ async fn run(options: Options) -> Result<(), anyhow::Error> {
         Command::Sync(sync_options) => {
             // commands::sync(options.global, sync_options)?,
             todo!("unfinished")
-        },
+        }
         Command::CreateCacheMap(sub_options) => {
             commands::create_cache_map(options.global, sub_options)?
         }

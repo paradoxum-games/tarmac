@@ -71,12 +71,22 @@ pub struct UploadImageOptions {
 
     /// The ID of the user to upload to. This option only has effect when using
     /// an API key. Please note that you may only specify a group ID or a user ID.
-    #[clap(long, conflicts_with("group_id"), requires("api_key"), conflicts_with("auth"))]
+    #[clap(
+        long,
+        conflicts_with("group_id"),
+        requires("api_key"),
+        conflicts_with("auth")
+    )]
     pub user_id: Option<u64>,
 
     /// The ID of the group to upload to. This option only has an effect when
     /// using an API key. Please note that you may only specify a group ID or a user ID.
-    #[clap(long, conflicts_with("user_id"), requires("api_key"), conflicts_with("auth"))]
+    #[clap(
+        long,
+        conflicts_with("user_id"),
+        requires("api_key"),
+        conflicts_with("auth")
+    )]
     pub group_id: Option<u64>,
 }
 

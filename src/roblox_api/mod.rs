@@ -2,8 +2,8 @@ mod open_cloud;
 
 use std::borrow::Cow;
 
-use async_trait::async_trait;
 use anyhow::{bail, Result};
+use async_trait::async_trait;
 use rbxcloud::rbx::error::Error as RbxCloudError;
 use reqwest::StatusCode;
 use secrecy::SecretString;
@@ -46,10 +46,7 @@ pub trait RobloxApiClient<'a> {
     //     data: ImageUploadData<'a>,
     // ) -> Result<UploadResponse>;
 
-    async fn upload_image(
-        &self,
-        data: ImageUploadData<'a>,
-    ) -> Result<UploadResponse>;
+    async fn upload_image(&self, data: ImageUploadData<'a>) -> Result<UploadResponse>;
 
     fn download_image(&self, id: u64) -> Result<Vec<u8>>;
 }

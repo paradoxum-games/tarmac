@@ -11,7 +11,10 @@ use crate::{
     roblox_api::{get_preferred_client, ImageUploadData, RobloxCredentials},
 };
 
-pub async fn upload_image(global: GlobalOptions, options: UploadImageOptions) -> anyhow::Result<()> {
+pub async fn upload_image(
+    global: GlobalOptions,
+    options: UploadImageOptions,
+) -> anyhow::Result<()> {
     let image_data = fs::read(options.path).expect("couldn't read input file");
 
     let mut img = image::load_from_memory(&image_data).expect("couldn't load image");

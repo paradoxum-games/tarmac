@@ -33,7 +33,7 @@ impl<'a> RobloxApiClient<'a> for OpenCloudClient<'a> {
             (None, Some(id)) => AssetCreator::User(AssetUserCreator {
                 user_id: id.to_string(),
             }),
-            _ => unreachable!()
+            _ => unreachable!(),
         };
 
         let Some(api_key) = credentials.api_key.as_ref() else {
@@ -74,10 +74,7 @@ impl<'a> RobloxApiClient<'a> for OpenCloudClient<'a> {
     //     }
     // }
 
-    async fn upload_image(
-        &self,
-        data: ImageUploadData<'a>,
-    ) -> Result<UploadResponse> {
+    async fn upload_image(&self, data: ImageUploadData<'a>) -> Result<UploadResponse> {
         self.upload_image_inner(data).await
     }
 
@@ -88,10 +85,7 @@ impl<'a> RobloxApiClient<'a> for OpenCloudClient<'a> {
 }
 
 impl<'a> OpenCloudClient<'a> {
-    async fn upload_image_inner(
-        &self,
-        data: ImageUploadData<'a>,
-    ) -> Result<UploadResponse> {
+    async fn upload_image_inner(&self, data: ImageUploadData<'a>) -> Result<UploadResponse> {
         let asset_info = CreateAssetWithContents {
             asset: AssetCreation {
                 asset_type: AssetType::DecalPng,

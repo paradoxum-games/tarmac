@@ -1,5 +1,12 @@
 use std::{
-    borrow::Cow, io, marker::PhantomData, path::{Path, PathBuf}, pin::Pin, sync::Arc, thread, time::Duration
+    borrow::Cow,
+    io,
+    marker::PhantomData,
+    path::{Path, PathBuf},
+    pin::Pin,
+    sync::Arc,
+    thread,
+    time::Duration,
 };
 
 use async_trait::async_trait;
@@ -33,29 +40,29 @@ pub struct UploadInfo {
 
 pub struct RobloxSyncBackend<'a, ApiClient>
 where
-    ApiClient: RobloxApiClient::<'a> + Sync + Clone + Send
+    ApiClient: RobloxApiClient<'a> + Sync + Clone + Send,
 {
     api_client: Arc<ApiClient>,
-    _marker: PhantomData<&'a ()>
+    _marker: PhantomData<&'a ()>,
 }
 
-impl<'a, ApiClient> RobloxSyncBackend<'a, ApiClient> 
+impl<'a, ApiClient> RobloxSyncBackend<'a, ApiClient>
 where
-    ApiClient: RobloxApiClient::<'a> + Sync + Clone + Send
+    ApiClient: RobloxApiClient<'a> + Sync + Clone + Send,
 {
     pub fn new(api_client: ApiClient) -> Self {
         // Self { api_client: Arc::new(api_client) }
         Self {
             api_client: Arc::new(api_client),
-            _marker: PhantomData::default()
-        } 
+            _marker: PhantomData::default(),
+        }
     }
 }
 
 #[async_trait]
 impl<'a, ApiClient> SyncBackend for RobloxSyncBackend<'a, ApiClient>
 where
-    ApiClient: RobloxApiClient::<'a> + Sync + Clone + Send
+    ApiClient: RobloxApiClient<'a> + Sync + Clone + Send,
 {
     async fn upload(&self, data: UploadInfo) -> Result<UploadResponse, Error> {
         log::info!("Uploading {} to Roblox", &data.name);
@@ -185,7 +192,7 @@ impl SyncBackend for DebugSyncBackend {
 /// Performs the retry logic for rate limitation errors. The struct wraps a SyncBackend so that
 /// when a RateLimited error occurs, the thread sleeps for a moment and then tries to reupload the
 /// data.
-/// 
+///
 #[derive(Clone, Debug)]
 pub struct RetryBackend<InnerSyncBackend> {
     inner: InnerSyncBackend,
@@ -284,7 +291,7 @@ pub enum Error {
 //                 self
 //             }
 //         }
-        
+
 //         impl<'a> SyncBackend for CountUploads<'a> {
 //             fn upload(&mut self, _data: UploadInfo) -> Result<UploadResponse, Error> {
 //                 (*self.counter) += 1;
