@@ -32,10 +32,7 @@ pub async fn upload_image(
 
     alpha_bleed(&mut img);
 
-    let (width, height) = match options.resize {
-        Some(dims) => dims,
-        None => img.dimensions()
-    };
+    let (width, height) = img.dimensions();
 
     let mut encoded_image: Vec<u8> = Vec::new();
     PngEncoder::new(&mut encoded_image)
@@ -58,7 +55,8 @@ pub async fn upload_image(
     let response = client.upload_image(upload_data).await?;
 
     info!("Image uploaded successfully!");
-    info!("rbxassetid://{}", response.backing_asset_id);
+    info!("Asset ID: rbxassetid://{}", response.backing_asset_id);
+    info!("Visit https://create.roblox.com/store/asset/{} to see it", response.backing_asset_id);
 
     Ok(())
 }
