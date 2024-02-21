@@ -78,7 +78,7 @@ impl<'a> RobloxApiClient<'a> for OpenCloudClient<'a> {
         self.upload_image_inner(data).await
     }
 
-    fn download_image(&self, id: u64) -> Result<Vec<u8>> {
+    async fn download_image(&self, id: u64) -> Result<Vec<u8>> {
         todo!();
         // LegacyClient::new(self.credentials.clone())?.download_image(id)
     }

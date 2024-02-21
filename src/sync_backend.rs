@@ -51,7 +51,6 @@ where
     ApiClient: RobloxApiClient<'a> + Sync + Clone + Send,
 {
     pub fn new(api_client: ApiClient) -> Self {
-        // Self { api_client: Arc::new(api_client) }
         Self {
             api_client: Arc::new(api_client),
             _marker: PhantomData::default(),

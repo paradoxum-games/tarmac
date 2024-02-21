@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::env;
 use std::io::{BufWriter, Write};
 
+use anyhow::Result;
 use fs_err as fs;
 
 use crate::asset_name::AssetName;
@@ -10,11 +11,8 @@ use crate::data::Manifest;
 use crate::options::{CreateCacheMapOptions, GlobalOptions};
 use crate::roblox_api::{get_preferred_client, RobloxCredentials};
 
-pub fn create_cache_map(
-    global: GlobalOptions,
-    options: CreateCacheMapOptions,
-) -> anyhow::Result<()> {
-    let mut api_client = get_preferred_client(RobloxCredentials {
+pub async fn create_cache_map(global: GlobalOptions, options: CreateCacheMapOptions) -> anyhow::Result<()> {
+    let api_client = get_preferred_client(RobloxCredentials {
         token: global.auth.or_else(get_auth_cookie),
         api_key: None,
         user_id: None,
@@ -46,7 +44,7 @@ pub fn create_cache_map(
         if contributing_assets.len() == 1 {
             index.insert(id, contributing_assets[0].to_string());
         } else {
-            let contents = api_client.download_image(id)?;
+            let contents = api_client.download_image(id).await?;
             let path = options.cache_dir.join(id.to_string());
             fs::write(&path, contents)?;
 

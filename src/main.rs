@@ -13,6 +13,7 @@ mod sync_backend;
 
 use std::{env, panic, process};
 
+use anyhow::{anyhow, Result};
 use backtrace::Backtrace;
 use clap::Parser;
 use tokio::signal;
@@ -20,19 +21,20 @@ use tokio::signal;
 use crate::options::{Command, Options};
 
 async fn run(options: Options) -> Result<(), anyhow::Error> {
-    match options.command {
+    let _ = match options.command {
         Command::UploadImage(upload_options) => {
-            commands::upload_image(options.global, upload_options).await?
+            commands::upload_image(options.global, upload_options).await
         }
-        Command::Sync(sync_options) => {
+        Command::Sync(_) => {
             // commands::sync(options.global, sync_options)?,
-            todo!("unfinished")
+            Err(anyhow!("unfinished"))
         }
         Command::CreateCacheMap(sub_options) => {
-            commands::create_cache_map(options.global, sub_options)?
+            commands::create_cache_map(options.global, sub_options).await
         }
-        Command::AssetList(sub_options) => commands::asset_list(options.global, sub_options)?,
-    }
+        Command::AssetList(sub_options) => commands::asset_list(options.global, sub_options).await,
+    }?;
+
 
     Ok(())
 }
@@ -50,21 +52,21 @@ async fn main() {
             },
         };
 
-        log::error!("Tarmac crashed!");
-        log::error!("This is probably a Tarmac bug.");
-        log::error!("");
-        log::error!(
+        eprintln!("Tarmac crashed!");
+        eprintln!("This is probably a Tarmac bug.");
+        eprintln!("");
+        eprintln!(
             "Please consider filing an issue: {}/issues",
             env!("CARGO_PKG_REPOSITORY")
         );
-        log::error!("");
-        log::error!("If you can reproduce this crash, try adding the -v, -vv, or -vvv flags.");
-        log::error!("This might give you more information to figure out what went wrong!");
-        log::error!("");
-        log::error!("Details: {}", message);
+        eprintln!("");
+        eprintln!("If you can reproduce this crash, try adding the -v, -vv, or -vvv flags.");
+        eprintln!("This might give you more information to figure out what went wrong!");
+        eprintln!("");
+        eprintln!("Details: {}", message);
 
         if let Some(location) = panic_info.location() {
-            log::error!("in file {} on line {}", location.file(), location.line());
+            eprintln!("in file {} on line {}", location.file(), location.line());
         }
 
         // When using the backtrace crate, we need to check the RUST_BACKTRACE

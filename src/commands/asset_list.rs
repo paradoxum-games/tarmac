@@ -4,10 +4,12 @@ use std::io::{BufWriter, Write};
 
 use fs_err as fs;
 
+use anyhow::Result;
+
 use crate::data::Manifest;
 use crate::options::{AssetListOptions, GlobalOptions};
 
-pub fn asset_list(_global: GlobalOptions, options: AssetListOptions) -> anyhow::Result<()> {
+pub async fn asset_list(_global: GlobalOptions, options: AssetListOptions) -> anyhow::Result<()> {
     let project_path = match options.project_path {
         Some(path) => path,
         None => env::current_dir()?,

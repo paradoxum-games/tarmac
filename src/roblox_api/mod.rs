@@ -1,8 +1,10 @@
 mod open_cloud;
+mod legacy;
+
 
 use std::borrow::Cow;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use rbxcloud::rbx::error::Error as RbxCloudError;
 use reqwest::StatusCode;
@@ -37,7 +39,8 @@ pub struct RobloxCredentials {
 #[async_trait]
 pub trait RobloxApiClient<'a> {
     fn new(credentials: RobloxCredentials) -> Result<Self>
-    where Self: Sized;
+    where
+        Self: Sized;
     // this was a bad idea, sorry
     // async fn upload_image_with_moderation_retry(
     //     &self,
@@ -46,7 +49,7 @@ pub trait RobloxApiClient<'a> {
 
     async fn upload_image(&self, data: ImageUploadData<'a>) -> Result<UploadResponse>;
 
-    fn download_image(&self, id: u64) -> Result<Vec<u8>>;
+    async fn download_image(&self, id: u64) -> Result<Vec<u8>>;
 }
 
 #[derive(Debug, Error)]
@@ -105,13 +108,13 @@ pub fn get_preferred_client<'a>(
             token: None,
             api_key: None,
             ..
-        } => bail!(RobloxApiError::MissingAuth),
+        } => Err(RobloxApiError::MissingAuth.into()),
 
         RobloxCredentials {
             group_id: Some(_),
             user_id: Some(_),
             ..
-        } => bail!(RobloxApiError::AmbiguousCreatorType),
+        } => Err(RobloxApiError::AmbiguousCreatorType.into()),
 
         RobloxCredentials {
             api_key: Some(_), ..

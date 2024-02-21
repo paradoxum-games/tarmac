@@ -1,6 +1,7 @@
 use fs_err as fs;
 
-use image::{codecs::png::PngEncoder, GenericImageView};
+use image::{codecs::png::PngEncoder, imageops::resize, DynamicImage, GenericImageView};
+use log::{debug, info};
 
 use std::borrow::Cow;
 
@@ -17,11 +18,24 @@ pub async fn upload_image(
 ) -> anyhow::Result<()> {
     let image_data = fs::read(options.path).expect("couldn't read input file");
 
-    let mut img = image::load_from_memory(&image_data).expect("couldn't load image");
+    let mut img = match options.resize {
+        Some((width, height)) => {
+            let img = image::load_from_memory(&image_data).expect("couldn't load image");
+            debug!("read image with dimensions {:?}, resizing to {:?}", img.dimensions(), (width, height));
+            let img = resize(&img, width, height, image::imageops::FilterType::Gaussian);
+            DynamicImage::ImageRgba8(img)
+        },
+        None => {
+            image::load_from_memory(&image_data).expect("couldn't load image")
+        }
+    };
 
     alpha_bleed(&mut img);
 
-    let (width, height) = img.dimensions();
+    let (width, height) = match options.resize {
+        Some(dims) => dims,
+        None => img.dimensions()
+    };
 
     let mut encoded_image: Vec<u8> = Vec::new();
     PngEncoder::new(&mut encoded_image)
@@ -43,8 +57,8 @@ pub async fn upload_image(
 
     let response = client.upload_image(upload_data).await?;
 
-    eprintln!("Image uploaded successfully!");
-    println!("{}", response.backing_asset_id);
+    info!("Image uploaded successfully!");
+    info!("rbxassetid://{}", response.backing_asset_id);
 
     Ok(())
 }

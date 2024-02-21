@@ -1,3 +1,4 @@
+use anyhow::bail;
 use clap::{Args, Parser, Subcommand};
 use secrecy::SecretString;
 use std::path::PathBuf;
@@ -88,6 +89,20 @@ pub struct UploadImageOptions {
         conflicts_with("auth")
     )]
     pub group_id: Option<u64>,
+
+    #[clap(long, value_parser(clap::builder::ValueParser::new(parse_resize_var)))]
+    pub resize: Option<(u32, u32)>,
+}
+
+fn parse_resize_var(env: &str) -> anyhow::Result<(u32, u32)> {
+    if let Some((width, height)) = env
+        .split_once('x')
+        .map(|(w, h)| (w.parse::<u32>(), h.parse::<u32>()))
+    {
+        Ok((width?, height?))
+    } else {
+        bail!("invalid dimensions passed")
+    }
 }
 
 #[derive(Debug, Args)]
