@@ -14,7 +14,10 @@ use rbxcloud::rbx::{
 use reqwest::StatusCode;
 use secrecy::ExposeSecret;
 
-use super::{ImageUploadData, RobloxApiClient, RobloxApiError, RobloxCredentials, UploadResponse};
+use super::{
+    legacy::LegacyClient, ImageUploadData, RobloxApiClient, RobloxApiError, RobloxCredentials,
+    UploadResponse,
+};
 
 pub struct OpenCloudClient<'a> {
     credentials: RobloxCredentials,
@@ -55,8 +58,9 @@ impl<'a> RobloxApiClient<'a> for OpenCloudClient<'a> {
     }
 
     async fn download_image(&self, id: u64) -> Result<Vec<u8>> {
-        todo!();
-        // LegacyClient::new(self.credentials.clone())?.download_image(id)
+        LegacyClient::new(self.credentials.clone())?
+            .download_image(id)
+            .await
     }
 }
 
