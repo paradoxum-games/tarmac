@@ -55,6 +55,9 @@ pub enum Command {
 
     /// Creates a file that lists all assets required by the project.
     AssetList(AssetListOptions),
+
+    /// Downloads a single image from the Roblox cloud.
+    DownloadImage(DownloadImageOptions),
 }
 
 #[derive(Debug, Args)]
@@ -94,6 +97,16 @@ pub struct UploadImageOptions {
     pub resize: Option<(u32, u32)>,
 }
 
+#[derive(Debug, Args)]
+pub struct DownloadImageOptions {
+    /// The path to the image to upload.
+    pub asset_id: u64,
+
+    /// The resulting path for the image asset
+    #[clap(long, short)]
+    pub output: String,
+}
+
 fn parse_resize_var(env: &str) -> anyhow::Result<(u32, u32)> {
     if let Some((width, height)) = env
         .split_once('x')
@@ -101,7 +114,7 @@ fn parse_resize_var(env: &str) -> anyhow::Result<(u32, u32)> {
     {
         Ok((width?, height?))
     } else {
-        bail!("invalid dimensions passed")
+        bail!("invalid dimensions passed - please pass your dimensions in the WxH format (e.g. 100x100, 200x200, etc)")
     }
 }
 

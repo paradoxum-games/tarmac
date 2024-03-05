@@ -1,16 +1,18 @@
-use std::{fmt::{self, Write}, marker::PhantomData};
+use std::{fmt::{self, Write}, marker::PhantomData, str::FromStr};
 
 use async_trait::async_trait;
 use reqwest::{
     header::{HeaderValue, COOKIE},
     Client, Request, Response, StatusCode,
 };
-use anyhow::Result;
+use anyhow::{bail, Result};
 use secrecy::ExposeSecret;
 use serde::Deserialize;
 use tokio::sync::RwLock;
 
 use crate::auth_cookie::get_csrf_token;
+use xml::{name::OwnedName, reader::{EventReader, XmlEvent}};
+
 
 use super::{ImageUploadData, RobloxApiClient, RobloxApiError, RobloxCredentials, UploadResponse};
 
@@ -68,7 +70,7 @@ impl<'a> RobloxApiClient<'a> for LegacyClient<'a> {
     }
 
     async fn download_image(&self, id: u64) -> Result<Vec<u8>> {
-        let url = format!("https://roblox.com/asset?id={}", id);
+        let url = format!("https://assetdelivery.roblox.com/v1/asset/?id={}", id);
 
         let mut response =
             self.execute_with_csrf_retry(|client| Ok(client.get(&url).build()?)).await?;
@@ -76,54 +78,63 @@ impl<'a> RobloxApiClient<'a> for LegacyClient<'a> {
         let mut buffer = Vec::new();
         response.copy_to(&mut buffer)?;
 
-        Ok(buffer)
+        let mut parser = EventReader::new(&buffer[..]);
+        // ignore the StartDocument event, if it exists
+        let Ok(XmlEvent::StartDocument { .. }) = parser.next() else {
+            // if not, then this probably isn't well-formed XML and we should bail
+            return Ok(buffer)
+        };
+
+        if let Ok(XmlEvent::StartElement { name, ..}) = dbg!(parser.next()) {
+            if name != OwnedName::from_str("roblox").unwrap() {
+                bail!("Unknown XML from asset delivery API")
+            }
+
+            let content = loop {
+                let e = parser.next();
+                if let Ok(XmlEvent::StartElement { name, .. }) = e {
+                    if name != OwnedName::from_str("url").unwrap() {
+                        continue;
+                    }
+
+                    let Ok(XmlEvent::Characters(s)) = parser.next() else {
+                        bail!("expected characters after url start element, got something else");
+                    };
+
+                    break Some(s);
+                }
+            };
+
+            let Some(content) = content else {
+                bail!("missing url element in xml response");
+            };
+
+            let mut parts = content.split("http://www.roblox.com/asset/?id=");
+            let Some(_) = parts.next() else {
+                bail!("expected an element to exist when splitting the asset id string - did Roblox change their asset ID format?");
+            };
+
+            let Some(asset_id) = parts.next() else {
+                bail!("missing asset id - did Roblox change their asset ID format?");
+            };
+
+            let asset_id = u64::from_str(asset_id)?;
+            println!("got actual asset id {asset_id:?}, downloading that instead...");
+
+            let url = format!("https://assetdelivery.roblox.com/v1/asset/?id={}", asset_id);
+
+            let mut response =
+                self.execute_with_csrf_retry(|client| Ok(client.get(&url).build()?)).await?;
+    
+            let mut buffer = Vec::new();
+            response.copy_to(&mut buffer)?;
+
+            Ok(buffer)
+        } 
+        else {
+            Ok(buffer)
+        }
     }
-
-    /// Upload an image, retrying if the asset endpoint determines that the
-    /// asset's name is inappropriate. The asset's name will be replaced with a
-    /// generic known-good string.
-    // fn upload_image_with_moderation_retry(
-    //     &mut self,
-    //     data: &ImageUploadData,
-    // ) -> Result<UploadResponse, RobloxApiError> {
-    //     let response = self.upload_image_raw(data)?;
-
-    //     // Some other errors will be reported inside the response, even
-    //     // though we received a successful HTTP response.
-    //     if response.success {
-    //         let asset_id = response.asset_id.unwrap();
-    //         let backing_asset_id = response.backing_asset_id.unwrap();
-
-    //         Ok(UploadResponse {
-    //             asset_id,
-    //             backing_asset_id,
-    //         })
-    //     } else {
-    //         let message = response.message.unwrap();
-
-    //         // There are no status codes for this API, so we pattern match
-    //         // on the returned error message.
-    //         //
-    //         // If the error message text mentions something being
-    //         // inappropriate, we assume the title was problematic and
-    //         // attempt to re-upload.
-    //         if message.contains("inappropriate") {
-    //             log::warn!(
-    //                 "Image name '{}' was moderated, retrying with different name...",
-    //                 data.name
-    //             );
-
-    //             let new_data = ImageUploadData {
-    //                 name: "image",
-    //                 ..data.to_owned()
-    //             };
-
-    //             self.upload_image(&new_data)
-    //         } else {
-    //             Err(RobloxApiError::ApiError { message })
-    //         }
-    //     }
-    // }
 
     /// Upload an image, returning an error if anything goes wrong.
     async fn upload_image(&self, data: ImageUploadData::<'a>) -> Result<UploadResponse> {

@@ -16,17 +16,17 @@ pub async fn upload_image(
     global: GlobalOptions,
     options: UploadImageOptions,
 ) -> anyhow::Result<()> {
-    let image_data = fs::read(options.path).expect("couldn't read input file");
+    let image_data = fs::read(options.path)?;
 
     let mut img = match options.resize {
         Some((width, height)) => {
-            let img = image::load_from_memory(&image_data).expect("couldn't load image");
+            let img = image::load_from_memory(&image_data)?;
             debug!("read image with dimensions {:?}, resizing to {:?}", img.dimensions(), (width, height));
             let img = resize(&img, width, height, image::imageops::FilterType::Gaussian);
             DynamicImage::ImageRgba8(img)
         },
         None => {
-            image::load_from_memory(&image_data).expect("couldn't load image")
+            image::load_from_memory(&image_data)?
         }
     };
 
@@ -36,8 +36,7 @@ pub async fn upload_image(
 
     let mut encoded_image: Vec<u8> = Vec::new();
     PngEncoder::new(&mut encoded_image)
-        .encode(&img.to_bytes(), width, height, img.color())
-        .unwrap();
+        .encode(&img.to_bytes(), width, height, img.color())?;
 
     let client = get_preferred_client(RobloxCredentials {
         token: global.auth.or_else(get_auth_cookie),

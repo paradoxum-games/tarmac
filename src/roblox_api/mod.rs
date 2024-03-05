@@ -12,7 +12,7 @@ use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use self::open_cloud::OpenCloudClient;
+use self::{legacy::LegacyClient, open_cloud::OpenCloudClient};
 
 #[derive(Debug, Clone)]
 pub struct ImageUploadData<'a> {
@@ -41,12 +41,7 @@ pub trait RobloxApiClient<'a> {
     fn new(credentials: RobloxCredentials) -> Result<Self>
     where
         Self: Sized;
-    // this was a bad idea, sorry
-    // async fn upload_image_with_moderation_retry(
-    //     &self,
-    //     data: ImageUploadData<'a>,
-    // ) -> Result<UploadResponse>;
-
+        
     async fn upload_image(&self, data: ImageUploadData<'a>) -> Result<UploadResponse>;
 
     async fn download_image(&self, id: u64) -> Result<Vec<u8>>;
@@ -133,8 +128,8 @@ Tarmac will attempt to upload to the user currently logged into Roblox Studio, o
 If you mean to use the Open Cloud API, make sure to provide an API key!")
             };
 
-            todo!();
-            // Ok(Box::new(LegacyClient::new(credentials)?))
+            Ok(Box::new(LegacyClient::new(credentials)?))
+        
         }
     }
 }

@@ -57,3 +57,5 @@ tokio = "1.20.1"
 walkdir = "2.2.9"
 async-trait = "0.1.77"
 clap = { version = "4.5.0", features = ["derive", "env"] }
+resolve-path = "0.1.0"
+xml-rs = "0.8.19"

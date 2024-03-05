@@ -50,30 +50,6 @@ impl<'a> RobloxApiClient<'a> for OpenCloudClient<'a> {
         })
     }
 
-    // this was a bad idea, sorry
-    // async fn upload_image_with_moderation_retry(
-    //     &self,
-    //     data: ImageUploadData<'a>,
-    // ) -> Result<UploadResponse> {
-    //     match self.upload_image(data.clone()).await {
-    //         Err(RobloxApiError::ResponseError { status, body })
-    //             if status == 400 && body.contains("moderated") =>
-    //         {
-    //             log::warn!(
-    //                 "Image name '{}' was moderated, retrying with different name...",
-    //                 data.name
-    //             );
-    //             self.upload_image(ImageUploadData {
-    //                 name: "image".to_string(),
-    //                 ..data.to_owned()
-    //             })
-    //             .await
-    //         }
-
-    //         result => result,
-    //     }
-    // }
-
     async fn upload_image(&self, data: ImageUploadData<'a>) -> Result<UploadResponse> {
         self.upload_image_inner(data).await
     }

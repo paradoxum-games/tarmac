@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 use std::env;
 use std::io::{BufWriter, Write};
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use fs_err as fs;
+use resolve_path::PathResolveExt;
 
 use crate::asset_name::AssetName;
 use crate::auth_cookie::get_auth_cookie;
@@ -11,7 +12,7 @@ use crate::data::Manifest;
 use crate::options::{CreateCacheMapOptions, GlobalOptions};
 use crate::roblox_api::{get_preferred_client, RobloxCredentials};
 
-pub async fn create_cache_map(global: GlobalOptions, options: CreateCacheMapOptions) -> anyhow::Result<()> {
+pub async fn create_cache_map(global: GlobalOptions, options: CreateCacheMapOptions) -> Result<()> {
     let api_client = get_preferred_client(RobloxCredentials {
         token: global.auth.or_else(get_auth_cookie),
         api_key: None,
@@ -26,7 +27,12 @@ pub async fn create_cache_map(global: GlobalOptions, options: CreateCacheMapOpti
 
     let manifest = Manifest::read_from_folder(&project_path)?;
 
-    let index_dir = options.index_file.parent().unwrap();
+    let index_file = options.index_file.try_resolve()?;
+
+    let Some(index_dir) = index_file.parent() else {
+        bail!("missing parent directory for index file - this should never happen");
+    };
+
     fs::create_dir_all(index_dir)?;
 
     fs::create_dir_all(&options.cache_dir)?;

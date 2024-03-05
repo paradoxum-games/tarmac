@@ -9,7 +9,7 @@ use secrecy::{ExposeSecret, SecretString};
 
 use crate::roblox_api::RobloxApiError;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 
 pub fn get_auth_cookie() -> Option<SecretString> {
     rbx_cookie::get_value().map(SecretString::new)
@@ -26,6 +26,6 @@ pub fn get_csrf_token(roblosecurity_cookie: &SecretString) -> Result<HeaderValue
     if let Some(csrf_token) = headers.get("X-CSRF-Token") {
         Ok(csrf_token.to_owned())
     } else {
-        bail!(RobloxApiError::MissingCsrfToken)
+        Err(RobloxApiError::MissingCsrfToken.into())
     }
 }

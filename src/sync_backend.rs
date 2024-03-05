@@ -2,19 +2,18 @@ use std::{
     borrow::Cow,
     io,
     marker::PhantomData,
-    path::{Path, PathBuf},
-    pin::Pin,
+    path::PathBuf,
     sync::Arc,
     thread,
     time::Duration,
 };
 
+use anyhow::Result;
 use async_trait::async_trait;
 use fs_err as fs;
 use reqwest::StatusCode;
 use roblox_install::RobloxStudio;
-use thiserror::Error;
-use tokio::sync::Mutex;
+use thiserror::Error as ThisError;
 
 use crate::{
     data::AssetId,
@@ -23,7 +22,7 @@ use crate::{
 
 #[async_trait]
 pub trait SyncBackend {
-    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse, Error>;
+    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse>;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -63,39 +62,52 @@ impl<'a, ApiClient> SyncBackend for RobloxSyncBackend<'a, ApiClient>
 where
     ApiClient: RobloxApiClient<'a> + Sync + Clone + Send,
 {
-    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse, Error> {
+    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse> {
         log::info!("Uploading {} to Roblox", &data.name);
 
-        todo!()
+        let result = self
+            .api_client
+            .upload_image(ImageUploadData {
+                image_data: Cow::Owned(data.contents),
+                name: data.name.clone(),
+                description: "Uploaded by Tarmac.".to_string(),
+            })
+            .await;
 
-        // let result = self
-        //     .api_client
-        //     .upload_image_with_moderation_retry(&ImageUploadData {
-        //         image_data: Cow::Owned(data.contents),
-        //         name: &data.name,
-        //         description: "Uploaded by Tarmac.",
-        //     }).await;
+        match result {
+            Ok(response) => {
+                log::info!(
+                    "Uploaded {} to ID {}",
+                    data.name,
+                    response.backing_asset_id
+                );
 
-        // match result {
-        //     Ok(response) => {
-        //         log::info!(
-        //             "Uploaded {} to ID {}",
-        //             &data.name,
-        //             response.backing_asset_id
-        //         );
+                Ok(UploadResponse {
+                    id: AssetId::Id(response.backing_asset_id),
+                })
+            }
 
-        //         Ok(UploadResponse {
-        //             id: AssetId::Id(response.backing_asset_id),
-        //         })
-        //     }
-
-        //     Err(RobloxApiError::ResponseError {
-        //         status: StatusCode::TOO_MANY_REQUESTS,
-        //         ..
-        //     }) => Err(Error::RateLimited),
-
-        //     Err(err) => Err(err.into()),
-        // }
+            // Err(RobloxApiError::ResponseError {
+            //     status: StatusCode::TOO_MANY_REQUESTS,
+            //     ..
+            // }) => Err(Error::RateLimited),
+            Err(err) => {
+                if err.is::<RobloxApiError>() {
+                    let err = err.downcast::<RobloxApiError>()?;
+                    if let RobloxApiError::ResponseError {
+                        status: StatusCode::TOO_MANY_REQUESTS,
+                        ..
+                    } = err
+                    {
+                        Err(Error::RateLimited.into())
+                    } else {
+                        Err(err.into())
+                    }
+                } else {
+                    Err(err.into())
+                }
+            }
+        }
     }
 }
 
@@ -105,7 +117,7 @@ pub struct LocalSyncBackend {
 }
 
 impl LocalSyncBackend {
-    pub fn new(scope: Option<String>) -> Result<LocalSyncBackend, Error> {
+    pub fn new(scope: Option<String>) -> Result<LocalSyncBackend> {
         RobloxStudio::locate()
             .map(|studio| LocalSyncBackend {
                 content_path: studio.content_path().into(),
@@ -130,7 +142,7 @@ impl LocalSyncBackend {
 
 #[async_trait]
 impl SyncBackend for LocalSyncBackend {
-    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse, Error> {
+    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse> {
         let asset_path = self.get_asset_path(&data);
         let file_path = self.content_path.join(&asset_path);
         let parent = file_path
@@ -152,8 +164,8 @@ pub struct NoneSyncBackend;
 
 #[async_trait]
 impl SyncBackend for NoneSyncBackend {
-    async fn upload(&self, _data: UploadInfo) -> Result<UploadResponse, Error> {
-        Err(Error::NoneBackend)
+    async fn upload(&self, _data: UploadInfo) -> Result<UploadResponse> {
+        Err(Error::NoneBackend.into())
     }
 }
 
@@ -169,7 +181,7 @@ impl DebugSyncBackend {
 
 #[async_trait]
 impl SyncBackend for DebugSyncBackend {
-    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse, Error> {
+    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse> {
         todo!();
         // log::info!("Copying {} to local folder", &data.name);
 
@@ -214,7 +226,7 @@ impl<InnerSyncBackend> RetryBackend<InnerSyncBackend> {
 
 #[async_trait]
 impl<InnerSyncBackend: SyncBackend + Clone + Sync> SyncBackend for RetryBackend<InnerSyncBackend> {
-    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse, Error> {
+    async fn upload(&self, data: UploadInfo) -> Result<UploadResponse> {
         for index in 0..self.attempts {
             if index != 0 {
                 log::info!(
@@ -226,17 +238,16 @@ impl<InnerSyncBackend: SyncBackend + Clone + Sync> SyncBackend for RetryBackend<
             }
             let result = self.inner.upload(data.clone()).await;
 
-            match result {
-                Err(Error::RateLimited) => {}
-                _ => return result,
-            }
+            if let Ok(response) = result {
+                return Ok(response);
+            } 
         }
 
-        Err(Error::RateLimited)
+        Err(Error::RateLimited.into())
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, ThisError)]
 pub enum Error {
     #[error("Cannot upload assets with the 'none' target.")]
     NoneBackend,
