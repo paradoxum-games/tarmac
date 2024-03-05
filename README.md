@@ -1,2 +1,2 @@
 # tarmac
-Paradoxum Games is discontinuing all efforts to support on-going open-source development in Roblox. This repo is now private. Sorry.
+Please visit [azul-rbx/runway](https://github.com/azul-rbx/runway) for any further development.
