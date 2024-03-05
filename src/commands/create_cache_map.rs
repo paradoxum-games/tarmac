@@ -1,18 +1,33 @@
 use std::collections::BTreeMap;
 use std::env;
 use std::io::{BufWriter, Write};
+use std::path::PathBuf;
 
 use anyhow::{bail, Result};
+use clap::Args;
 use fs_err as fs;
 use resolve_path::PathResolveExt;
 
 use crate::asset_name::AssetName;
 use crate::auth_cookie::get_auth_cookie;
 use crate::data::Manifest;
-use crate::options::{CreateCacheMapOptions, GlobalOptions};
+use crate::options::Global;
 use crate::roblox_api::{get_preferred_client, RobloxCredentials};
 
-pub async fn create_cache_map(global: GlobalOptions, options: CreateCacheMapOptions) -> Result<()> {
+#[derive(Debug, Args)]
+pub struct CreateCacheMapOptions {
+    pub project_path: Option<PathBuf>,
+
+    /// A path to a directory to put any downloaded packed images.
+    #[clap(long = "cache-dir")]
+    pub cache_dir: PathBuf,
+
+    /// A path to a file to contain the cache mapping.
+    #[clap(long = "index-file")]
+    pub index_file: PathBuf,
+}
+
+pub async fn create_cache_map(global: Global, options: CreateCacheMapOptions) -> Result<()> {
     let api_client = get_preferred_client(RobloxCredentials {
         token: global.auth.or_else(get_auth_cookie),
         api_key: None,

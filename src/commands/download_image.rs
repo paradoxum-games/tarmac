@@ -1,19 +1,24 @@
+use clap::Args;
 use fs_err as fs;
 
-use image::{codecs::png::PngEncoder, imageops::resize, DynamicImage, GenericImageView};
-use log::{debug, info};
-
-use std::borrow::Cow;
-
 use crate::{
-    alpha_bleed::alpha_bleed,
     auth_cookie::get_auth_cookie,
-    options::{GlobalOptions, DownloadImageOptions},
-    roblox_api::{get_preferred_client, ImageUploadData, RobloxCredentials},
+    options::Global,
+    roblox_api::{get_preferred_client, RobloxCredentials},
 };
 
+#[derive(Debug, Args)]
+pub struct DownloadImageOptions {
+    /// The path to the image to upload.
+    pub asset_id: u64,
+
+    /// The resulting path for the image asset
+    #[clap(long, short)]
+    pub output: String,
+}
+
 pub async fn download_image(
-    global: GlobalOptions,
+    global: Global,
     options: DownloadImageOptions,
 ) -> anyhow::Result<()> {
     let client = get_preferred_client(RobloxCredentials {

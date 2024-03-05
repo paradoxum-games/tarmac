@@ -1,15 +1,26 @@
 use std::collections::BTreeSet;
 use std::env;
 use std::io::{BufWriter, Write};
+use std::path::PathBuf;
 
+use clap::Args;
 use fs_err as fs;
 
 use anyhow::Result;
 
 use crate::data::Manifest;
-use crate::options::{AssetListOptions, GlobalOptions};
+use crate::options::Global;
 
-pub async fn asset_list(_global: GlobalOptions, options: AssetListOptions) -> anyhow::Result<()> {
+#[derive(Debug, Args)]
+pub struct AssetListOptions {
+    pub project_path: Option<PathBuf>,
+
+    /// A path to a file to put the asset list.
+    #[clap(long = "output")]
+    pub output: PathBuf,
+}
+
+pub async fn asset_list(_: Global, options: AssetListOptions) -> Result<()> {
     let project_path = match options.project_path {
         Some(path) => path,
         None => env::current_dir()?,

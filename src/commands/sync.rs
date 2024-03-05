@@ -29,6 +29,48 @@
 //     },
 // };
 
+use std::path::PathBuf;
+
+use clap::Args;
+
+#[derive(Debug, Args)]
+pub struct SyncOptions {
+    /// Where Tarmac should sync the project.
+    ///
+    /// Options:
+    ///
+    /// - roblox: Upload to Roblox.com
+    ///
+    /// - none: Do not upload. Tarmac will exit with an error if there are any
+    ///   unsynced assets.
+    ///
+    /// - debug: Copy to local debug directory for debugging output
+    ///
+    /// - local: Copy to locally installed Roblox content folder.
+    #[clap(long, require_equals = true, value_enum, num_args = 0..=1, default_value_t = SyncTarget::Roblox)]
+    pub target: SyncTarget,
+
+    /// When provided, Tarmac will upload again at most the given number of times
+    /// when it encounters rate limitation errors.
+    #[clap(long)]
+    pub retry: Option<usize>,
+
+    /// The number of seconds to wait between each re-upload attempts.
+    #[clap(long, default_value = "60")]
+    pub retry_delay: u64,
+
+    /// The path to a Tarmac config, or a folder containing a Tarmac project.
+    pub config_path: Option<PathBuf>,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+pub enum SyncTarget {
+    Roblox,
+    None,
+    Debug,
+    Local,
+}
+
 // fn sync_session<B: SyncBackend>(session: &mut SyncSession, options: &SyncOptions, mut backend: B) {
 //     if let Some(retry) = options.retry {
 //         let mut retry_backend =

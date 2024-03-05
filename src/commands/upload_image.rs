@@ -1,19 +1,69 @@
+use anyhow::bail;
+use clap::Args;
 use fs_err as fs;
 
 use image::{codecs::png::PngEncoder, imageops::resize, DynamicImage, GenericImageView};
 use log::{debug, info};
 
-use std::borrow::Cow;
+use std::{borrow::Cow, path::PathBuf};
 
 use crate::{
     alpha_bleed::alpha_bleed,
     auth_cookie::get_auth_cookie,
-    options::{GlobalOptions, UploadImageOptions},
+    options::Global,
     roblox_api::{get_preferred_client, ImageUploadData, RobloxCredentials},
 };
 
+#[derive(Debug, Args)]
+pub struct UploadImageOptions {
+    /// The path to the image to upload.
+    pub path: PathBuf,
+
+    /// The name to give to the resulting Decal asset.
+    #[clap(long)]
+    pub name: String,
+
+    /// The description to give to the resulting Decal asset.
+    #[clap(long, default_value = "Uploaded by Tarmac.")]
+    pub description: String,
+
+    /// The ID of the user to upload to. This option only has effect when using
+    /// an API key. Please note that you may only specify a group ID or a user ID.
+    #[clap(
+        long,
+        conflicts_with("group_id"),
+        requires("api_key"),
+        conflicts_with("auth")
+    )]
+    pub user_id: Option<u64>,
+
+    /// The ID of the group to upload to. This option only has an effect when
+    /// using an API key. Please note that you may only specify a group ID or a user ID.
+    #[clap(
+        long,
+        conflicts_with("user_id"),
+        requires("api_key"),
+        conflicts_with("auth")
+    )]
+    pub group_id: Option<u64>,
+
+    #[clap(long, value_parser(clap::builder::ValueParser::new(parse_resize_var)))]
+    pub resize: Option<(u32, u32)>,
+}
+
+fn parse_resize_var(env: &str) -> anyhow::Result<(u32, u32)> {
+    if let Some((width, height)) = env
+        .split_once('x')
+        .map(|(w, h)| (w.parse::<u32>(), h.parse::<u32>()))
+    {
+        Ok((width?, height?))
+    } else {
+        bail!("invalid dimensions passed - please pass your dimensions in the WxH format (e.g. 100x100, 200x200, etc)")
+    }
+}
+
 pub async fn upload_image(
-    global: GlobalOptions,
+    global: Global,
     options: UploadImageOptions,
 ) -> anyhow::Result<()> {
     let image_data = fs::read(options.path)?;

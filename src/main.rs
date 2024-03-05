@@ -18,12 +18,13 @@ use backtrace::Backtrace;
 use clap::Parser;
 use tokio::signal;
 
-use crate::options::{Command, Options};
+use crate::options::Options;
+use crate::commands::Command;
 
 async fn run(options: Options) -> Result<(), anyhow::Error> {
     let _ = match options.command {
-        Command::UploadImage(upload_options) => {
-            commands::upload_image(options.global, upload_options).await
+        Command::UploadImage(sub_options) => {
+            commands::upload_image(options.global, sub_options).await
         },
         Command::DownloadImage(sub_options) => {
             commands::download_image(options.global, sub_options).await
