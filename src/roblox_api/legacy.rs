@@ -1,6 +1,7 @@
 use std::{fmt::{self, Write}, marker::PhantomData, str::FromStr};
 
 use async_trait::async_trait;
+use log::info;
 use reqwest::{
     header::{HeaderValue, COOKIE},
     Client, Request, Response, StatusCode,
@@ -85,7 +86,7 @@ impl<'a> RobloxApiClient<'a> for LegacyClient<'a> {
             return Ok(buffer)
         };
 
-        if let Ok(XmlEvent::StartElement { name, ..}) = dbg!(parser.next()) {
+        if let Ok(XmlEvent::StartElement { name, ..}) = parser.next() {
             if name != OwnedName::from_str("roblox").unwrap() {
                 bail!("Unknown XML from asset delivery API")
             }
@@ -119,7 +120,7 @@ impl<'a> RobloxApiClient<'a> for LegacyClient<'a> {
             };
 
             let asset_id = u64::from_str(asset_id)?;
-            println!("got actual asset id {asset_id:?}, downloading that instead...");
+            info!("got actual asset id {asset_id:?}, downloading that instead...");
 
             let url = format!("https://assetdelivery.roblox.com/v1/asset/?id={}", asset_id);
 
