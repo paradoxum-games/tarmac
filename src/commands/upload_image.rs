@@ -62,22 +62,21 @@ fn parse_resize_var(env: &str) -> anyhow::Result<(u32, u32)> {
     }
 }
 
-pub async fn upload_image(
-    global: Global,
-    options: UploadImageOptions,
-) -> anyhow::Result<()> {
+pub async fn upload_image(global: Global, options: UploadImageOptions) -> anyhow::Result<()> {
     let image_data = fs::read(options.path)?;
 
     let mut img = match options.resize {
         Some((width, height)) => {
             let img = image::load_from_memory(&image_data)?;
-            debug!("read image with dimensions {:?}, resizing to {:?}", img.dimensions(), (width, height));
+            debug!(
+                "read image with dimensions {:?}, resizing to {:?}",
+                img.dimensions(),
+                (width, height)
+            );
             let img = resize(&img, width, height, image::imageops::FilterType::Gaussian);
             DynamicImage::ImageRgba8(img)
-        },
-        None => {
-            image::load_from_memory(&image_data)?
         }
+        None => image::load_from_memory(&image_data)?,
     };
 
     alpha_bleed(&mut img);
@@ -85,8 +84,7 @@ pub async fn upload_image(
     let (width, height) = img.dimensions();
 
     let mut encoded_image: Vec<u8> = Vec::new();
-    PngEncoder::new(&mut encoded_image)
-        .encode(&img.to_bytes(), width, height, img.color())?;
+    PngEncoder::new(&mut encoded_image).encode(&img.to_bytes(), width, height, img.color())?;
 
     let client = get_preferred_client(RobloxCredentials {
         token: global.auth.or_else(get_auth_cookie),
@@ -105,7 +103,10 @@ pub async fn upload_image(
 
     info!("Image uploaded successfully!");
     info!("Asset ID: rbxassetid://{}", response.backing_asset_id);
-    info!("Visit https://create.roblox.com/store/asset/{} to see it", response.backing_asset_id);
+    info!(
+        "Visit https://create.roblox.com/store/asset/{} to see it",
+        response.backing_asset_id
+    );
 
     Ok(())
 }

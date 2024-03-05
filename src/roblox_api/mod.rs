@@ -1,6 +1,5 @@
-mod open_cloud;
 mod legacy;
-
+mod open_cloud;
 
 use std::borrow::Cow;
 
@@ -41,7 +40,7 @@ pub trait RobloxApiClient<'a> {
     fn new(credentials: RobloxCredentials) -> Result<Self>
     where
         Self: Sized;
-        
+
     async fn upload_image(&self, data: ImageUploadData<'a>) -> Result<UploadResponse>;
 
     async fn download_image(&self, id: u64) -> Result<Vec<u8>>;
@@ -129,7 +128,6 @@ If you mean to use the Open Cloud API, make sure to provide an API key!")
             };
 
             Ok(Box::new(LegacyClient::new(credentials)?))
-        
         }
     }
 }

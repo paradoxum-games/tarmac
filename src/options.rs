@@ -1,6 +1,6 @@
+use crate::commands::Command;
 use clap::Parser;
 use secrecy::SecretString;
-use crate::commands::Command;
 
 #[derive(Debug, Parser)]
 #[clap(about = env!("CARGO_PKG_DESCRIPTION"))]

@@ -1,15 +1,15 @@
 mod asset_list;
 mod create_cache_map;
+mod download_image;
 mod sync;
 mod upload_image;
-mod download_image;
 
-use clap::Subcommand;
 pub use asset_list::*;
+use clap::Subcommand;
 pub use create_cache_map::*;
+pub use download_image::*;
 pub use sync::*;
 pub use upload_image::*;
-pub use download_image::*;
 
 #[derive(Debug, Subcommand)]
 pub enum Command {

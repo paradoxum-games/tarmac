@@ -18,27 +18,26 @@ use backtrace::Backtrace;
 use clap::Parser;
 use tokio::signal;
 
-use crate::options::Options;
 use crate::commands::Command;
+use crate::options::Options;
 
 async fn run(options: Options) -> Result<(), anyhow::Error> {
     let _ = match options.command {
         Command::UploadImage(sub_options) => {
             commands::upload_image(options.global, sub_options).await
-        },
+        }
         Command::DownloadImage(sub_options) => {
             commands::download_image(options.global, sub_options).await
-        },
+        }
         Command::Sync(_) => {
             // commands::sync(options.global, sync_options)?,
             Err(anyhow!("unfinished"))
-        },
+        }
         Command::CreateCacheMap(sub_options) => {
             commands::create_cache_map(options.global, sub_options).await
-        },
+        }
         Command::AssetList(sub_options) => commands::asset_list(options.global, sub_options).await,
     }?;
-
 
     Ok(())
 }

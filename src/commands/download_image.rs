@@ -17,10 +17,7 @@ pub struct DownloadImageOptions {
     pub output: String,
 }
 
-pub async fn download_image(
-    global: Global,
-    options: DownloadImageOptions,
-) -> anyhow::Result<()> {
+pub async fn download_image(global: Global, options: DownloadImageOptions) -> anyhow::Result<()> {
     let client = get_preferred_client(RobloxCredentials {
         token: global.auth.or_else(get_auth_cookie),
         api_key: None,
@@ -30,6 +27,6 @@ pub async fn download_image(
 
     let response = client.download_image(options.asset_id).await?;
     fs::write(options.output, response)?;
-    
+
     Ok(())
 }

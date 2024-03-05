@@ -1,12 +1,4 @@
-use std::{
-    borrow::Cow,
-    io,
-    marker::PhantomData,
-    path::PathBuf,
-    sync::Arc,
-    thread,
-    time::Duration,
-};
+use std::{borrow::Cow, io, marker::PhantomData, path::PathBuf, sync::Arc, thread, time::Duration};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -76,11 +68,7 @@ where
 
         match result {
             Ok(response) => {
-                log::info!(
-                    "Uploaded {} to ID {}",
-                    data.name,
-                    response.backing_asset_id
-                );
+                log::info!("Uploaded {} to ID {}", data.name, response.backing_asset_id);
 
                 Ok(UploadResponse {
                     id: AssetId::Id(response.backing_asset_id),
@@ -240,7 +228,7 @@ impl<InnerSyncBackend: SyncBackend + Clone + Sync> SyncBackend for RetryBackend<
 
             if let Ok(response) = result {
                 return Ok(response);
-            } 
+            }
         }
 
         Err(Error::RateLimited.into())
